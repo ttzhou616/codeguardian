@@ -1,0 +1,32 @@
+# CodeGuardian Custom Style Rules
+# Each rule defines a naming or formatting check.
+
+rules:
+  - id: "CG-001"
+    name: "function_naming"
+    description: "Functions must use snake_case"
+    pattern: "^def [a-z][a-z0-9_]*\\(.*\\):$"
+    severity: warning
+    message: "Function name should be in snake_case"
+
+  - id: "CG-002"
+    name: "class_naming"
+    description: "Classes must use PascalCase"
+    pattern: "^class [A-Z][a-zA-Z0-9]+.*:$"
+    severity: warning
+    message: "Class name should be in PascalCase"
+
+  - id: "CG-003"
+    name: "max_function_length"
+    description: "Functions should not exceed 50 lines"
+    max_lines: 50
+    severity: suggestion
+    message: "Function is too long, consider refactoring"
+
+  - id: "CG-004"
+    name: "no_print_statements"
+    description: "Avoid print() in production code"
+    disallowed:
+      - "print("
+    severity: suggestion
+    message: "Use a logger instead of print()"
