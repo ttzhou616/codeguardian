@@ -37,3 +37,4 @@ Thumbs.db
 *.log
 reports/
 .codeguardian.yaml
+.codeguardian_vectordb/
