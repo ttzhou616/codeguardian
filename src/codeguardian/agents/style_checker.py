@@ -80,7 +80,7 @@ class StyleCheckerAgent(BaseAgent):
 
             # Detect function definition
             func_match = re.match(
-                r"(?:def|function|func|fn)\s+(\w+)",
+                r"(?:def|fun\b|function|func|fn)\s+(\w+)",
                 stripped,
             )
             if func_match:
