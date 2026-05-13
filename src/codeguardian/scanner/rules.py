@@ -328,3 +328,48 @@ def load_static_rules() -> list[SecurityRule]:
             category="structure",
         ),
     ]
+
+
+def load_performance_rules() -> list[SecurityRule]:
+    """Return regex-based performance rules for non-Python languages.
+    Python files are analyzed via AST in PerformanceAnalyzerAgent."""
+    return [
+        SecurityRule(
+            rule_id="PA-010",
+            title="N+1 query in JavaScript",
+            description="Database or API call inside forEach/map loop.",
+            severity=Severity.WARNING,
+            patterns=[
+                r"\.forEach\s*\(.*\.(?:find|findOne|query|fetch|get)\(",
+                r"for\s*\(.*\)\s*\{.*\.(?:find|findOne|query|fetch|get)\(",
+            ],
+            file_extensions=[".js", ".ts", ".jsx", ".tsx"],
+            suggestion="Batch queries or use Promise.all for parallel execution.",
+            category="performance",
+        ),
+        SecurityRule(
+            rule_id="PA-011",
+            title="String concatenation in loop",
+            description="Building strings with += inside a loop.",
+            severity=Severity.WARNING,
+            patterns=[
+                r"\w+\s*\+=\s*\w+\s*\+",
+                r"for\s*\(.*\).*\w+\s*\+=",
+            ],
+            file_extensions=[".js", ".ts", ".java", ".cs"],
+            suggestion="Use StringBuilder (Java), Array.join (JS), or similar buffer class.",
+            category="performance",
+        ),
+        SecurityRule(
+            rule_id="PA-012",
+            title="Repeated DOM query in loop",
+            description="DOM queries inside loops cause repeated reflows.",
+            severity=Severity.WARNING,
+            patterns=[
+                r"for\s*\(.*\).*document\.(?:getElementById|querySelector|getElementsBy)",
+            ],
+            file_extensions=[".js", ".ts", ".jsx", ".tsx"],
+            suggestion="Cache the DOM reference outside the loop.",
+            category="performance",
+        ),
+    ]
