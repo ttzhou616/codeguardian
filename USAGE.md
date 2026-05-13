@@ -50,16 +50,22 @@ pip install -e ".[dev,semgrep,vectordb]"
 # 1. 生成配置
 codeg init
 
-# 2. 审查一个目录
+# 2. 交互式审查（逐步提示：路径→Agent→格式→输出）
+codeg review
+
+# 3. 审查一个目录（非交互）
 codeg review --path ./src
 
-# 3. 审查 Git 变更
+# 4. 只运行单个 Agent
+codeg review --path ./src --only performance_analyzer
+
+# 5. 审查 Git 变更
 codeg review --diff HEAD~3..HEAD
 
-# 4. CI 检查（有严重问题返回非零退出码）
+# 6. CI 检查（有严重问题返回非零退出码）
 codeg check --path ./src --threshold critical
 
-# 5. 查看所有 Agent
+# 7. 查看所有 Agent
 codeg agents
 ```
 
@@ -80,12 +86,28 @@ codeg review [OPTIONS]
 | `--config, -c` | 配置文件路径 | `--config ./my-rules.yaml` |
 | `--format, -f` | 输出格式：markdown / json / sarif | `--format json` |
 | `--output, -o` | 输出到文件（默认输出到终端） | `--output report.md` |
+| `--only` | 只运行指定 Agent | `--only security_scanner` |
+| `--interactive, -i` | 交互模式：逐步提示输入 | `--interactive` |
+
+**交互模式：**
+
+不带 `--path` 和 `--diff` 时自动进入交互模式，逐步引导输入：
+
+```
+1. 目录路径 → 2. 选择Agent (0=全部 / 1-6) → 3. 输出格式 → 4. 保存文件 → 确认执行
+```
 
 **示例：**
 
 ```bash
+# 交互模式（推荐新手）
+codeg review
+
 # 审查单个文件
 codeg review --path src/app.py
+
+# 只运行性能分析
+codeg review --path ./src --only performance_analyzer
 
 # 审查整个目录，JSON 格式输出到文件
 codeg review --path ./src --format json --output report.json
@@ -107,6 +129,7 @@ codeg review --path ./src --config strict.yaml
 
 ```bash
 codeg check --path ./src --threshold warning
+codeg check --path ./src --threshold critical --only security_scanner
 ```
 
 退出码：

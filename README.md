@@ -59,8 +59,14 @@ pip install -e ".[dev]"
 # Generate config
 codeg init
 
-# Review a directory
+# Interactive review (step-by-step prompts)
+codeg review
+
+# Review a directory (non-interactive)
 codeg review --path ./src
+
+# Run a single agent
+codeg review --path ./src --only performance_analyzer
 
 # Review git changes
 codeg review --diff HEAD~3..HEAD --format markdown
