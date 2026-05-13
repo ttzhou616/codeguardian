@@ -13,11 +13,11 @@ from codeguardian.models.findings import Finding, Severity
 class Reporter:
     """Formats ReviewReports for various output targets."""
 
-    SEVERITY_ICON = {
-        Severity.CRITICAL: "🔴",
-        Severity.WARNING: "🟡",
-        Severity.SUGGESTION: "🟢",
-        Severity.INFO: "ℹ️",
+    SEVERITY_MARKER = {
+        Severity.CRITICAL: "CRITICAL",
+        Severity.WARNING: "WARNING",
+        Severity.SUGGESTION: "SUGGESTION",
+        Severity.INFO: "INFO",
     }
 
     def __init__(self, findings: list[Finding]):
@@ -40,16 +40,16 @@ class Reporter:
         ]
 
         if not self.findings:
-            lines.append("✅ No issues found.")
+            lines.append("No issues found.")
         else:
             grouped = self._group_by_file()
             for file_path, findings in grouped.items():
                 lines.append(f"### `{file_path}` ({len(findings)} issue(s))")
                 lines.append("")
                 for f in findings:
-                    icon = self.SEVERITY_ICON[f.severity]
+                    marker = self.SEVERITY_MARKER[f.severity]
                     lines.append(
-                        f"**{icon} [{f.severity.value.upper()}] Line {f.line_start}-{f.line_end}** — {f.title}"
+                        f"**[{marker}] Line {f.line_start}-{f.line_end}** -- {f.title}"
                     )
                     if f.description:
                         lines.append(f"> {f.description}")

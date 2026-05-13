@@ -1,0 +1,32 @@
+# SQL Injection Detection Rules
+# These rules are implemented in src/codeguardian/scanner/rules.py
+# This YAML serves as documentation and can be extended for Semgrep integration.
+
+rules:
+  - id: SEC-001
+    name: "String concatenation in SQL query"
+    severity: critical
+    description: "SQL query constructed via string concatenation is vulnerable to SQL injection."
+    languages: [python, javascript, typescript, java, go, ruby, php, csharp, swift]
+    fix: "Use parameterized queries or an ORM instead of string concatenation."
+
+  - id: SEC-002
+    name: "F-string / format in SQL query"
+    severity: critical
+    description: "SQL query built with f-string or .format() allows injection via user-controlled variables."
+    languages: [python]
+    fix: "Use parameterized queries with placeholders instead of f-strings."
+
+  - id: SEC-003
+    name: "Bare execute() with variable SQL"
+    severity: critical
+    description: "Raw execute() called with a variable containing SQL is likely injectable."
+    languages: [python, java, go, ruby, javascript, typescript]
+    fix: "Use parameterized queries with placeholder values."
+
+  - id: SEC-004
+    name: "%s / % operator in SQL"
+    severity: critical
+    description: "SQL built with Python % formatting is vulnerable to injection."
+    languages: [python]
+    fix: "Use parameterized queries (cursor.execute(sql, params))."

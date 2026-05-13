@@ -36,6 +36,9 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.4",
 ]
+semgrep = [
+    "semgrep>=1.0",
+]
 
 [project.scripts]
 codeguardian = "codeguardian.main:app"

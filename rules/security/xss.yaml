@@ -1,0 +1,30 @@
+# XSS and Dangerous Function Detection Rules
+
+rules:
+  - id: SEC-020
+    name: "Unescaped innerHTML assignment"
+    severity: warning
+    description: "Direct assignment to innerHTML with a variable can lead to XSS."
+    languages: [javascript, typescript, html]
+    fix: "Use textContent or sanitize the value with DOMPurify before assignment."
+
+  - id: SEC-021
+    name: "document.write() with variable"
+    severity: warning
+    description: "document.write() with dynamic content can inject scripts."
+    languages: [javascript, typescript, html]
+    fix: "Use safer DOM manipulation methods like appendChild or insertAdjacentHTML."
+
+  - id: SEC-030
+    name: "eval() or exec() usage"
+    severity: warning
+    description: "eval() and exec() execute arbitrary code and are dangerous with user input."
+    languages: [python, javascript, typescript, ruby, php]
+    fix: "Replace eval/exec with a safe alternative. Consider ast.literal_eval() for data parsing."
+
+  - id: SEC-031
+    name: "Shell command injection risk"
+    severity: warning
+    description: "os.system() or subprocess with shell=True can lead to command injection."
+    languages: [python]
+    fix: "Use subprocess.run() with shell=False and pass arguments as a list."
