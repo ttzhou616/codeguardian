@@ -39,6 +39,9 @@ dev = [
 semgrep = [
     "semgrep>=1.0",
 ]
+vectordb = [
+    "chromadb>=1.0",
+]
 
 [project.scripts]
 codeguardian = "codeguardian.main:app"

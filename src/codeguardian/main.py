@@ -181,6 +181,23 @@ def pr_review(
 
 
 @app.command()
+def kb_stats() -> None:
+    """Show knowledge base statistics."""
+    try:
+        from codeguardian.knowledge.vector_kb import VectorKnowledgeBase
+        kb = VectorKnowledgeBase()
+        stats = kb.get_stats()
+        if stats.get("initialized"):
+            console.print(f"[green]Vector KB:[/green] {stats.get('total_entries', 0)} entries, "
+                          f"{stats.get('false_positives', 0)} false positives")
+            console.print(f"  Storage: {stats.get('storage_path', 'N/A')}")
+        else:
+            console.print("[yellow]Vector KB not initialized (chromadb may not be installed)[/yellow]")
+    except Exception as e:
+        console.print(f"[red]Error: {e}[/red]")
+
+
+@app.command()
 def agents() -> None:
     """List available review agents."""
     table = Table(title="Available Agents")

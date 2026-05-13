@@ -9,6 +9,7 @@ from pathlib import Path
 
 from codeguardian.agents.base import BaseAgent
 from codeguardian.knowledge.base import KnowledgeBase
+from codeguardian.knowledge.vector_kb import VectorKnowledgeBase
 from codeguardian.models.findings import ChangeScope, Finding, FindingCategory, Severity
 from codeguardian.scanner.engine import RuleEngine
 from codeguardian.scanner.rules import load_builtin_rules
@@ -26,18 +27,26 @@ class SecurityScannerAgent(BaseAgent):
 
     async def setup(self) -> None:
         rules = load_builtin_rules()
-        # Merge with custom rules from config if specified
         if self._config.custom_rules:
             rules = self._merge_custom_rules(rules)
         self.engine = RuleEngine(rules)
-        self.kb = KnowledgeBase()
-        await self.log("info", f"Security scanner loaded {len(rules)} rules")
+        self.kb = VectorKnowledgeBase() if self._vector_kb_available() else KnowledgeBase()
+        await self.log("info", f"Security scanner loaded {len(rules)} rules "
+                              f"(KB: {'vector' if self._vector_kb_available() else 'memory'})")
+
+    @staticmethod
+    def _vector_kb_available() -> bool:
+        try:
+            import chromadb  # noqa: F401
+            return True
+        except ImportError:
+            return False
 
     async def analyze(self, scope: ChangeScope) -> list[Finding]:
         if not self.engine:
             self.engine = RuleEngine(load_builtin_rules())
         if not self.kb:
-            self.kb = KnowledgeBase()
+            self.kb = VectorKnowledgeBase() if self._vector_kb_available() else KnowledgeBase()
 
         files = scope.file_paths
         if not files:
