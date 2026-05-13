@@ -1,27 +1,33 @@
 # CodeGuardian Custom Style Rules
-# Each rule defines a naming or formatting check.
+# Each rule detects violations — patterns match code that SHOULD be flagged.
 
 rules:
   - id: "CG-001"
     name: "function_naming"
     description: "Functions must use snake_case"
-    pattern: "^def [a-z][a-z0-9_]*\\(.*\\):$"
+    pattern: "^\\s*def\\s+[A-Z]"
     severity: warning
+    languages: [".py"]
     message: "Function name should be in snake_case"
+    category: "naming"
 
   - id: "CG-002"
     name: "class_naming"
     description: "Classes must use PascalCase"
-    pattern: "^class [A-Z][a-zA-Z0-9]+.*:$"
+    pattern: "^\\s*class\\s+[a-z]"
     severity: warning
+    languages: [".py"]
     message: "Class name should be in PascalCase"
+    category: "naming"
 
   - id: "CG-003"
     name: "max_function_length"
     description: "Functions should not exceed 50 lines"
     max_lines: 50
     severity: suggestion
+    languages: [".py", ".js", ".ts", ".java", ".go"]
     message: "Function is too long, consider refactoring"
+    category: "structure"
 
   - id: "CG-004"
     name: "no_print_statements"
@@ -29,4 +35,6 @@ rules:
     disallowed:
       - "print("
     severity: suggestion
+    languages: [".py"]
     message: "Use a logger instead of print()"
+    category: "structure"

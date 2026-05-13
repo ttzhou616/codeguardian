@@ -1,15 +1,18 @@
-"""Security rule definitions and built-in rule registry."""
+"""Rule definitions and built-in rule registries for security and style checks."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
 
 from codeguardian.models.findings import Severity
 
 
 @dataclass
 class SecurityRule:
-    """A single security detection rule."""
+    """A single detection rule that can be used for security, style, or other checks."""
 
     rule_id: str
     title: str
@@ -18,7 +21,9 @@ class SecurityRule:
     patterns: list[str]          # regex patterns applied per-line
     file_extensions: list[str]   # file extensions this rule applies to (empty = all)
     suggestion: str
-    category: str                # sql_injection | secrets | xss | dangerous_function
+    category: str                # sql_injection | secrets | xss | naming | structure | etc.
+    max_lines: int | None = None           # for function-length checks (0 = no limit)
+    disallowed_keywords: list[str] | None = None  # simple substring-disallowed checks
 
 
 def load_builtin_rules() -> list[SecurityRule]:
@@ -183,5 +188,96 @@ def load_builtin_rules() -> list[SecurityRule]:
             file_extensions=[".py"],
             suggestion="Use subprocess.run() with shell=False and pass arguments as a list.",
             category="dangerous_function",
+        ),
+    ]
+
+
+def load_style_rules(yaml_path: str | Path | None = None) -> list[SecurityRule]:
+    """Load style rules from a YAML file, falling back to built-in defaults."""
+    if yaml_path is None:
+        yaml_path = Path(__file__).parent.parent.parent.parent / "rules" / "style_rules.yaml"
+
+    path = Path(yaml_path)
+    if not path.exists():
+        return _default_style_rules()
+
+    with open(path, "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f) or {}
+
+    rules: list[SecurityRule] = []
+    for entry in data.get("rules", []):
+        patterns = []
+        disallowed = None
+        max_lines = None
+
+        if "pattern" in entry:
+            patterns = [entry["pattern"]]
+        if "disallowed" in entry:
+            disallowed = list(entry["disallowed"])
+            # Convert disallowed keywords to regex patterns for the engine
+            import re as _re
+            patterns = [_re.escape(kw) for kw in disallowed]
+        if "max_lines" in entry:
+            max_lines = entry["max_lines"]
+
+        rules.append(SecurityRule(
+            rule_id=entry.get("id", "CG-???"),
+            title=entry.get("name", entry.get("id", "")),
+            description=entry.get("description", ""),
+            severity=Severity(entry.get("severity", "warning")),
+            patterns=patterns,
+            file_extensions=entry.get("languages", []),
+            suggestion=entry.get("message", ""),
+            category=entry.get("category", "style"),
+            max_lines=max_lines,
+            disallowed_keywords=disallowed,
+        ))
+
+    return rules
+
+
+def _default_style_rules() -> list[SecurityRule]:
+    """Built-in default style rules when no YAML config is present."""
+    return [
+        SecurityRule(
+            rule_id="CG-001",
+            title="Function naming convention",
+            description="Functions should use snake_case naming.",
+            severity=Severity.WARNING,
+            patterns=[r"^\s*def\s+[A-Z]", r"^\s*def\s+[a-z][a-z0-9_]*[A-Z]"],
+            file_extensions=[".py"],
+            suggestion="Rename function to snake_case (e.g., 'calculate_total' not 'CalculateTotal').",
+            category="naming",
+        ),
+        SecurityRule(
+            rule_id="CG-002",
+            title="Class naming convention",
+            description="Classes should use PascalCase naming.",
+            severity=Severity.WARNING,
+            patterns=[r"^\s*class\s+[a-z]"],
+            file_extensions=[".py"],
+            suggestion="Rename class to PascalCase (e.g., 'ShoppingCart' not 'shopping_cart').",
+            category="naming",
+        ),
+        SecurityRule(
+            rule_id="CG-003",
+            title="Function too long",
+            description="Functions should not exceed 50 lines.",
+            severity=Severity.SUGGESTION,
+            patterns=[],
+            file_extensions=[".py", ".js", ".ts", ".java", ".go", ".rs"],
+            suggestion="Consider breaking this function into smaller, focused functions.",
+            category="structure",
+            max_lines=50,
+        ),
+        SecurityRule(
+            rule_id="CG-004",
+            title="Avoid print() in production code",
+            description="Using print() for logging is discouraged in production.",
+            severity=Severity.SUGGESTION,
+            patterns=[r"print\("],
+            file_extensions=[".py"],
+            suggestion="Use a proper logger (logging.info/debug) instead of print().",
+            category="structure",
         ),
     ]

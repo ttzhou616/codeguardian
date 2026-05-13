@@ -22,13 +22,15 @@ SKIP_EXTENSIONS = {
 
 
 class RuleEngine:
-    """Applies security rules to source files."""
+    """Applies scan rules to source files."""
 
-    def __init__(self, rules: list[SecurityRule]):
+    def __init__(self, rules: list[SecurityRule], default_category: FindingCategory = FindingCategory.SECURITY):
         self._rules = rules
+        self._default_category = default_category
         self._compiled: dict[str, list[re.Pattern]] = {}
         for rule in rules:
-            self._compiled[rule.rule_id] = [re.compile(p) for p in rule.patterns]
+            if rule.patterns:
+                self._compiled[rule.rule_id] = [re.compile(p) for p in rule.patterns]
 
     @property
     def rules(self) -> list[SecurityRule]:
@@ -83,7 +85,7 @@ class RuleEngine:
                             title=rule.title,
                             description=rule.description,
                             severity=rule.severity,
-                            category=FindingCategory.SECURITY,
+                            category=self._default_category,
                             suggestion=rule.suggestion,
                             rule_id=rule.rule_id,
                         ))
