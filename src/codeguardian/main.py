@@ -78,6 +78,9 @@ def review(
     output: Optional[Path] = typer.Option(
         None, "--output", "-o", help="Output file path"
     ),
+    only: Optional[str] = typer.Option(
+        None, "--only", help="Run only a specific agent (e.g., performance_analyzer)"
+    ),
 ) -> None:
     """Review code and generate a report."""
     if not path and not diff:
@@ -90,7 +93,7 @@ def review(
     scope = build_scope(path=path, diff=diff)
 
     # Run review
-    findings = asyncio.run(_run_review(scope, settings))
+    findings = asyncio.run(_run_review(scope, settings, only=only))
 
     # Generate report
     reporter = Reporter(findings)
@@ -109,17 +112,18 @@ def check(
     path: Path = typer.Option(..., "--path", "-p", help="Path to review"),
     threshold: str = typer.Option("warning", "--threshold", "-t", help="Fail if findings at this level or above"),
     config_path: Optional[Path] = typer.Option(None, "--config", "-c"),
+    only: Optional[str] = typer.Option(None, "--only", help="Run only a specific agent"),
 ) -> None:
     """CI-friendly check: non-zero exit if issues found above threshold.
 
-    Use in CI: codeguardian check --path ./src --threshold critical
+    Use in CI: codeg check --path ./src --threshold critical
     Exit codes: 0=clean, 1=error, 2=issues found
     """
     settings = load_config(config_path)
     settings.fail_on = Severity(threshold)
 
     scope = build_scope(path=path)
-    findings = asyncio.run(_run_review(scope, settings))
+    findings = asyncio.run(_run_review(scope, settings, only=only))
 
     if findings:
         reporter = Reporter(findings)
@@ -243,18 +247,30 @@ def build_scope(
     return ChangeScope(changed_files=changed_files, diff_text=diff)
 
 
-async def _run_review(scope: ChangeScope, settings: CodeGuardianSettings) -> list:
+async def _run_review(
+    scope: ChangeScope, settings: CodeGuardianSettings, only: str | None = None,
+) -> list:
     """Set up the orchestrator with all agents and run review."""
     orchestrator = Orchestrator(settings)
 
-    orchestrator.register_all([
-        StaticAnalysisAgent("static_analysis", config=settings.agents["static_analysis"]),
-        SecurityScannerAgent("security_scanner", config=settings.agents["security_scanner"]),
-        DesignReviewerAgent("design_reviewer", config=settings.agents["design_reviewer"]),
-        TestReviewerAgent("test_reviewer", config=settings.agents["test_reviewer"]),
-        PerformanceAnalyzerAgent("performance_analyzer", config=settings.agents["performance_analyzer"]),
-        StyleCheckerAgent("style_checker", config=settings.agents["style_checker"]),
-    ])
+    all_agents = {
+        "static_analysis": StaticAnalysisAgent("static_analysis", config=settings.agents["static_analysis"]),
+        "security_scanner": SecurityScannerAgent("security_scanner", config=settings.agents["security_scanner"]),
+        "design_reviewer": DesignReviewerAgent("design_reviewer", config=settings.agents["design_reviewer"]),
+        "test_reviewer": TestReviewerAgent("test_reviewer", config=settings.agents["test_reviewer"]),
+        "performance_analyzer": PerformanceAnalyzerAgent("performance_analyzer", config=settings.agents["performance_analyzer"]),
+        "style_checker": StyleCheckerAgent("style_checker", config=settings.agents["style_checker"]),
+    }
+
+    if only:
+        agent = all_agents.get(only)
+        if agent is None:
+            names = ", ".join(all_agents)
+            console.print(f"[red]Unknown agent '{only}'. Available: {names}[/red]")
+            raise typer.Exit(code=1)
+        orchestrator.register(agent)
+    else:
+        orchestrator.register_all(list(all_agents.values()))
 
     report = await orchestrator.review(scope)
     return report.findings
