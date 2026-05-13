@@ -144,4 +144,4 @@ pip install -e ".[dev,semgrep,vectordb]"  # full install
     codeguardian check --path ./src --threshold critical
 ```
 
-For PR comments and SARIF upload, see [docs/USAGE.md](docs/USAGE.md).
+For PR comments and SARIF upload, see [USAGE.md](USAGE.md).
