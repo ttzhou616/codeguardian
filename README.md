@@ -1,38 +1,147 @@
 # CodeGuardian
 
-Multi-agent collaborative automated code review system.
+Multi-agent collaborative automated code review system. Six specialized agents analyze code from different perspectives, with optional Semgrep, LLM filtering, and vector knowledge base.
+
+[![CI](https://github.com/ttzhou616/codeguardian/actions/workflows/ci.yml/badge.svg)](https://github.com/ttzhou616/codeguardian/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/tests-78%20passed-green)](https://github.com/ttzhou616/codeguardian)
+
+---
 
 ## Architecture
 
-CodeGuardian uses a team of specialized agents to review code from different perspectives:
+```
+                      +--------------------+
+   git diff / path -->|   Orchestrator     |--- parallel dispatch
+                      +--------------------+
+                              |
+         +----------+---------+---------+----------+----------+
+         |          |         |         |          |          |
+    Security    Static     Style     Design     Test     Performance
+    Scanner    Analysis   Checker   Reviewer   Reviewer   Analyzer
+         |          |         |         |          |          |
+         +----------+---------+---------+----------+----------+
+                              |
+                      +--------v--------+
+                      |   Synthesizer   | (dedup + prioritize)
+                      +--------+--------+
+                               |
+                      +--------v--------+
+                      | LLM Filter      | (optional DeepSeek)
+                      +--------+--------+
+                               |
+                      +--------v--------+
+                      |   Reporter      | (Markdown/JSON/SARIF)
+                      +-----------------+
+```
 
-| Agent | Focus |
-|-------|-------|
-| Static Analysis | Complexity, dead code, type safety |
-| Security Scanner | SQL injection, XSS, hardcoded secrets |
-| Design Reviewer | SOLID violations, coupling, circular dependencies |
-| Test Reviewer | Coverage gaps, boundary conditions |
-| Performance Analyzer | N+1 queries, memory leaks, lock contention |
-| Style Checker | Naming conventions, code style consistency |
+## Six Agents
+
+| Agent | What It Checks | Rules | Python | JS/TS | Java | Go |
+|-------|---------------|-------|--------|-------|------|----|
+| **Security Scanner** | SQL injection, hardcoded secrets, XSS, command injection, weak crypto | 25 | AST + Regex | Regex | -- | -- |
+| **Static Analysis** | Cyclomatic complexity, nesting depth, parameter count, bare excepts | 10 | AST | Regex | -- | -- |
+| **Style Checker** | Naming conventions, function length, print() usage | 4 | Regex | Regex | -- | -- |
+| **Performance Analyzer** | N+1 queries, string concatenation in loops, range(len), DOM in loops | 8 | AST | Regex | -- | -- |
+| **Test Reviewer** | Missing test files, untested functions, no assertions, low coverage | 4 | File map + AST | -- | -- | -- |
+| **Design Reviewer** | Circular imports, god classes, high coupling, deep inheritance | 5 | AST | -- | -- | -- |
+
+**Total: 56 built-in rules + 21 Semgrep rules = 77 rules. 78 tests.**
 
 ## Quick Start
 
 ```bash
+# Clone and install
+git clone https://github.com/ttzhou616/codeguardian.git
+cd codeguardian
 pip install -e ".[dev]"
 
-# Initialize a config file
+# Generate config
 codeguardian init
 
 # Review a directory
 codeguardian review --path ./src
 
-# Review a git diff
-codeguardian review --diff HEAD~1..HEAD
+# Review git changes
+codeguardian review --diff HEAD~3..HEAD --format markdown
 
-# Output as JSON
-codeguardian review --path ./src --format json
+# CI check (non-zero exit on issues)
+codeguardian check --path ./src --threshold critical
+
+# List agents
+codeguardian agents
 ```
+
+## CLI Commands
+
+| Command | Purpose |
+|---------|---------|
+| `review` | Review code, output report (markdown/json/sarif) |
+| `check` | CI-friendly: exit code 2 if issues found above threshold |
+| `pr-review` | Review a GitHub PR and post results as comment |
+| `init` | Generate `.codeguardian.yaml` config file |
+| `agents` | List all review agents |
+| `kb-stats` | Show knowledge base statistics |
 
 ## Configuration
 
-Configuration is loaded from `.codeguardian.yaml` in the current directory, or set via environment variables prefixed with `CG_`.
+```yaml
+# .codeguardian.yaml
+agents:
+  security_scanner:
+    enabled: true
+    severity_threshold: info
+  static_analysis:
+    enabled: true
+  # ... (style_checker, design_reviewer, test_reviewer, performance_analyzer)
+
+report_format: markdown          # markdown | json | sarif
+severity_threshold: info         # info | suggestion | warning | critical
+fail_on: null                    # set to e.g. 'critical' to fail CI
+
+# LLM filter (optional)
+llm_provider: deepseek           # deepseek | openai
+llm_model: deepseek-chat
+llm_api_key: ${CG_LLM_API_KEY}   # from env var
+```
+
+All settings overridable via `CG_` prefixed env vars:
+
+```bash
+export CG_LLM_API_KEY="sk-xxxx"
+export CG_FAIL_ON="warning"
+```
+
+## System Features
+
+### GitHub PR Review
+Automatic PR review via GitHub Actions (`.github/workflows/pr-review.yml`). Posts findings as PR comments; updates on new commits.
+
+### Semgrep Integration
+Install with `pip install codeguardian[semgrep]`. Security Scanner automatically runs bundled Semgrep rules alongside built-in checks.
+
+### LLM False-Positive Filter
+Set `CG_LLM_API_KEY` to enable DeepSeek/OpenAI-based context analysis. The LLM distinguishes test data, docstrings, and safe wrappers from real vulnerabilities.
+
+### Vector Knowledge Base
+Install with `pip install codeguardian[vectordb]`. ChromaDB-backed persistent storage with semantic search. Past false positives are auto-suppressed even when code moves.
+
+## Install Options
+
+```bash
+pip install -e ".[dev]"              # tests + lint
+pip install -e ".[dev,semgrep]"      # + Semgrep (2000+ community rules)
+pip install -e ".[dev,semgrep,vectordb]"  # full install
+```
+
+## GitHub CI Integration
+
+```yaml
+# .github/workflows/ci.yml
+- name: CodeGuardian Check
+  run: |
+    pip install -e ".[dev]"
+    codeguardian check --path ./src --threshold critical
+```
+
+For PR comments and SARIF upload, see [docs/USAGE.md](docs/USAGE.md).
