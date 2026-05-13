@@ -8,6 +8,7 @@ from typing import Optional
 
 import typer
 from rich.console import Console
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from codeguardian import __version__
@@ -81,11 +82,15 @@ def review(
     only: Optional[str] = typer.Option(
         None, "--only", help="Run only a specific agent (e.g., performance_analyzer)"
     ),
+    interactive: bool = typer.Option(
+        False, "--interactive", "-i", help="Interactive mode: step-by-step prompts"
+    ),
 ) -> None:
     """Review code and generate a report."""
-    if not path and not diff:
-        console.print("[red]Either --path or --diff must be specified[/red]")
-        raise typer.Exit(code=1)
+    # Interactive mode
+    if interactive or (not path and not diff):
+        _review_interactive()
+        return
 
     settings = load_config(config_path)
 
@@ -219,6 +224,120 @@ def agents() -> None:
     for name, desc in agents_info:
         table.add_row(name, desc)
     console.print(table)
+
+
+def _review_interactive() -> None:
+    """Interactive review walkthrough."""
+    console.print()
+    console.print("[bold cyan]CodeGuardian Interactive Review[/bold cyan]")
+    console.print("─" * 40)
+    console.print()
+
+    # Step 1: Path
+    while True:
+        raw = Prompt.ask("[bold]1. 请输入要审查的目录或文件路径[/bold]").strip().strip('"')
+        if not raw:
+            console.print("[red]路径不能为空[/red]")
+            continue
+        p = Path(raw)
+        if not p.exists():
+            console.print(f"[red]路径不存在: {p}[/red]")
+            continue
+        break
+    console.print(f"   [green]✓ {p}[/green]")
+    console.print()
+
+    # Step 2: Agent selection
+    agents_display = [
+        ("security_scanner",    "安全扫描 — SQL注入/密钥/XSS/命令注入"),
+        ("static_analysis",     "静态分析 — 复杂度/嵌套/参数/异常"),
+        ("style_checker",       "风格检查 — 命名/函数长度/禁用模式"),
+        ("design_reviewer",     "设计审查 — 循环依赖/上帝类/高耦合"),
+        ("test_reviewer",       "测试审查 — 缺失测试/断言/覆盖率"),
+        ("performance_analyzer","性能分析 — N+1查询/循环拼接/反模式"),
+    ]
+
+    table = Table(title="2. 选择审查 Agent")
+    table.add_column("#", style="dim", width=4)
+    table.add_column("Agent", style="cyan")
+    table.add_column("Description")
+    for i, (name, desc) in enumerate(agents_display, 1):
+        table.add_row(str(i), name, desc)
+    table.add_row("0", "all", "全部运行")
+    console.print(table)
+
+    while True:
+        choice = Prompt.ask("输入序号 (0=全部, 1-6)", default="0").strip()
+        if choice == "0":
+            only_agent = None
+            break
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(agents_display):
+                only_agent = agents_display[idx][0]
+                break
+        except ValueError:
+            pass
+        console.print("[red]请输入 0-6[/red]")
+    console.print(f"   [green]✓ {'全部' if not only_agent else only_agent}[/green]")
+    console.print()
+
+    # Step 3: Output format
+    format_table = Table(title="3. 输出格式")
+    format_table.add_column("#", style="dim", width=4)
+    format_table.add_column("Format")
+    format_table.add_column("Description")
+    format_table.add_row("1", "markdown", "可读报告，适合终端查看和文件保存")
+    format_table.add_row("2", "json",     "机器可读，适合 CI 流水线")
+    format_table.add_row("3", "sarif",    "SARIF 标准格式，可导入 GitHub Code Scanning")
+    console.print(format_table)
+
+    fmt_choices = {"1": ReportFormat.MARKDOWN, "2": ReportFormat.JSON, "3": ReportFormat.SARIF}
+    while True:
+        fchoice = Prompt.ask("选择格式", default="1").strip()
+        if fchoice in fmt_choices:
+            fmt = fmt_choices[fchoice]
+            break
+        console.print("[red]请输入 1-3[/red]")
+    console.print(f"   [green]✓ {fmt.value}[/green]")
+    console.print()
+
+    # Step 4: Output file (optional)
+    save = Confirm.ask("4. 保存到文件？", default=True)
+    output_path: Path | None = None
+    if save:
+        ext_map = {ReportFormat.MARKDOWN: "md", ReportFormat.JSON: "json", ReportFormat.SARIF: "sarif"}
+        default_name = f"review_report.{ext_map[fmt]}"
+        raw = Prompt.ask("文件名", default=default_name)
+        output_path = Path(raw).resolve()
+        console.print(f"   [green]✓ {output_path}[/green]")
+    console.print()
+
+    # ── Confirm and run ──────────────────────────────────────────
+    console.print("─" * 40)
+    if not Confirm.ask("[bold]开始审查？[/bold]", default=True):
+        console.print("[yellow]已取消[/yellow]")
+        return
+    console.print()
+
+    # Run
+    settings = load_config()
+    settings.report_format = fmt
+    scope = build_scope(path=p)
+    findings = asyncio.run(_run_review(scope, settings, only=only_agent))
+    reporter = Reporter(findings)
+    _print_summary(reporter)
+
+    if output_path:
+        reporter.write(output_path, fmt.value)
+        console.print(f"[green]报告已保存至: {output_path}[/green]")
+    else:
+        formatters = {
+            ReportFormat.MARKDOWN: reporter.to_markdown,
+            ReportFormat.JSON: reporter.to_json,
+            ReportFormat.SARIF: reporter.to_sarif,
+        }
+        console.print(formatters[fmt]())
 
 
 def build_scope(
