@@ -105,6 +105,82 @@ def review(
 
 
 @app.command()
+def check(
+    path: Path = typer.Option(..., "--path", "-p", help="Path to review"),
+    threshold: str = typer.Option("warning", "--threshold", "-t", help="Fail if findings at this level or above"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c"),
+) -> None:
+    """CI-friendly check: non-zero exit if issues found above threshold.
+
+    Use in CI: codeguardian check --path ./src --threshold critical
+    Exit codes: 0=clean, 1=error, 2=issues found
+    """
+    settings = load_config(config_path)
+    settings.fail_on = Severity(threshold)
+
+    scope = build_scope(path=path)
+    findings = asyncio.run(_run_review(scope, settings))
+
+    if findings:
+        reporter = Reporter(findings)
+        _print_summary(reporter)
+        if _has_finding_at_severity(findings, Severity(threshold)):
+            raise typer.Exit(code=2)
+
+    console.print("[green]Check passed[/green]")
+
+
+@app.command()
+def pr_review(
+    pr_number: Optional[int] = typer.Option(None, "--pr", help="PR number (auto-detect from CI if omitted)"),
+    repo: Optional[str] = typer.Option(None, "--repo", help="Repository (owner/name)"),
+    config_path: Optional[Path] = typer.Option(None, "--config", "-c"),
+) -> None:
+    """Review a GitHub Pull Request and post results as a comment.
+
+    Requires GITHUB_TOKEN env var or gh CLI to be authenticated.
+    Uses CI environment variables when running in GitHub Actions.
+    """
+    import os
+    import subprocess
+    import sys
+
+    settings = load_config(config_path)
+
+    # Detect PR info
+    if not pr_number:
+        pr_number = _detect_pr_number()
+    if not repo:
+        repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if not pr_number or not repo:
+        console.print("[red]Could not detect PR number or repo. "
+                       "Use --pr and --repo options.[/red]")
+        raise typer.Exit(code=1)
+
+    # Get PR diff
+    diff = _get_pr_diff(pr_number, repo)
+    if not diff:
+        console.print("[red]Could not fetch PR diff.[/red]")
+        raise typer.Exit(code=1)
+
+    # Build scope and review
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        diff_file = Path(td) / "pr.diff"
+        diff_file.write_text(diff, encoding="utf-8")
+        scope = build_scope_from_diff(diff)
+        findings = asyncio.run(_run_review(scope, settings))
+
+    reporter = Reporter(findings)
+    report = reporter.to_markdown(title=f"## CodeGuardian Review — PR #{pr_number}")
+
+    # Post to PR
+    _post_pr_comment(pr_number, repo, report)
+
+    _print_summary(reporter)
+
+
+@app.command()
 def agents() -> None:
     """List available review agents."""
     table = Table(title="Available Agents")
@@ -225,6 +301,167 @@ def _has_finding_at_severity(findings: list, severity: Severity) -> bool:
 def _is_hidden(path: Path) -> bool:
     """Check if any path component starts with a dot."""
     return any(part.startswith(".") for part in path.parts)
+
+
+# ── PR Review helpers ────────────────────────────────────────────
+
+def _detect_pr_number() -> int | None:
+    """Detect PR number from CI environment or gh CLI."""
+    import os
+
+    # GitHub Actions
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if event_path:
+        import json
+        try:
+            event = json.loads(Path(event_path).read_text())
+            if "pull_request" in event:
+                return event["pull_request"]["number"]
+            if "number" in event:
+                return event["number"]
+        except Exception:
+            pass
+
+    # Azure DevOps / GitLab / etc.
+    for var in ["SYSTEM_PULLREQUEST_PULLREQUESTNUMBER", "CI_MERGE_REQUEST_IID"]:
+        val = os.environ.get(var)
+        if val:
+            return int(val)
+
+    return None
+
+
+def _get_pr_diff(pr_number: int, repo: str) -> str | None:
+    """Get PR diff via gh CLI or GitHub API."""
+    import os
+
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    repo = repo.strip()
+
+    # Try gh CLI first
+    import shutil
+    if shutil.which("gh"):
+        import subprocess
+        result = subprocess.run(
+            ["gh", "pr", "diff", str(pr_number), "--repo", repo],
+            capture_output=True, text=True, timeout=60,
+        )
+        if result.returncode == 0:
+            return result.stdout
+
+    # Fallback to API
+    if token:
+        import httpx
+        try:
+            resp = httpx.get(
+                f"https://api.github.com/repos/{repo}/pulls/{pr_number}",
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Accept": "application/vnd.github.v3.diff",
+                },
+                timeout=30,
+            )
+            if resp.status_code == 200:
+                return resp.text
+        except Exception:
+            pass
+
+    return None
+
+
+def _post_pr_comment(pr_number: int, repo: str, body: str) -> None:
+    """Post or update a review comment on a PR."""
+    import os
+
+    token = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if not token:
+        console.print("[yellow]No GITHUB_TOKEN; skipping PR comment.[/yellow]")
+        return
+
+    import httpx
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Accept": "application/vnd.github+json",
+    }
+    api_base = f"https://api.github.com/repos/{repo}"
+
+    # Truncate body if needed
+    if len(body) > 60000:
+        body = body[:60000] + "\n\n... (truncated)"
+
+    try:
+        # List existing comments
+        resp = httpx.get(
+            f"{api_base}/issues/{pr_number}/comments",
+            headers=headers, timeout=15,
+        )
+        comments = resp.json() if resp.status_code == 200 else []
+
+        bot_comment_id = None
+        for c in comments:
+            if "CodeGuardian Review" in c.get("body", ""):
+                bot_comment_id = c["id"]
+                break
+
+        if bot_comment_id:
+            resp = httpx.patch(
+                f"{api_base}/issues/comments/{bot_comment_id}",
+                headers=headers, json={"body": body}, timeout=15,
+            )
+        else:
+            resp = httpx.post(
+                f"{api_base}/issues/{pr_number}/comments",
+                headers=headers, json={"body": body}, timeout=15,
+            )
+
+        if resp.status_code in (200, 201):
+            console.print("[green]PR comment posted successfully[/green]")
+        else:
+            console.print(f"[yellow]Failed to post PR comment: {resp.status_code}[/yellow]")
+
+    except Exception as e:
+        console.print(f"[yellow]Error posting PR comment: {e}[/yellow]")
+
+
+def build_scope_from_diff(diff_text: str) -> ChangeScope:
+    """Parse a unified diff into a ChangeScope."""
+    import re
+
+    changed_files: list[ChangedFile] = []
+    current_file = None
+    additions = 0
+    deletions = 0
+
+    for line in diff_text.split("\n"):
+        if line.startswith("diff --git"):
+            if current_file:
+                changed_files.append(ChangedFile(
+                    path=current_file,
+                    status="modified",
+                    additions=additions,
+                    deletions=deletions,
+                ))
+            current_file = None
+            additions = 0
+            deletions = 0
+        elif line.startswith("+++ "):
+            parts = line[4:].strip().split("/", 1)
+            current_file = parts[1] if len(parts) > 1 else parts[0]
+        elif current_file:
+            if line.startswith("+") and not line.startswith("+++"):
+                additions += 1
+            elif line.startswith("-") and not line.startswith("---"):
+                deletions += 1
+
+    if current_file:
+        changed_files.append(ChangedFile(
+            path=current_file,
+            status="modified",
+            additions=additions,
+            deletions=deletions,
+        ))
+
+    return ChangeScope(changed_files=changed_files, diff_text=diff_text)
 
 
 if __name__ == "__main__":

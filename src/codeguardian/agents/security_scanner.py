@@ -5,9 +5,9 @@ from __future__ import annotations
 import asyncio
 import json
 import shutil
+from pathlib import Path
 
 from codeguardian.agents.base import BaseAgent
-from codeguardian.config import AgentConfig
 from codeguardian.knowledge.base import KnowledgeBase
 from codeguardian.models.findings import ChangeScope, Finding, FindingCategory, Severity
 from codeguardian.scanner.engine import RuleEngine
@@ -86,18 +86,33 @@ class SecurityScannerAgent(BaseAgent):
         return shutil.which("semgrep") is not None
 
     async def _run_semgrep(self, files: list[str]) -> list[Finding]:
-        """Run Semgrep on the given files and parse results."""
+        """Run Semgrep with bundled rules on the given files and parse results."""
+        import os
         findings: list[Finding] = []
-        cmd = ["semgrep", "scan", "--config", "auto", "--json", *files]
+
+        # Find bundled rules directory
+        rules_dir = os.environ.get(
+            "CG_SEMGREP_RULES",
+            str(Path(__file__).parent.parent.parent.parent / "rules" / "semgrep"),
+        )
+
+        cmd = [
+            "semgrep", "scan",
+            "--config", rules_dir,
+            "--no-git-ignore",
+            "--json",
+            *files,
+        ]
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        stdout, _ = await proc.communicate()
+        stdout, stderr = await proc.communicate()
 
         if proc.returncode not in (0, 1):
-            return findings  # Semgrep failed
+            await self.log("warning", f"Semgrep failed: {stderr.decode()[:200]}")
+            return findings
 
         try:
             results = json.loads(stdout.decode())

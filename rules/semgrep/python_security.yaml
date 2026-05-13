@@ -1,0 +1,154 @@
+rules:
+  - id: cg.sqli.fstring
+    message: |
+      SQL query built with f-string allows injection.
+      Use parameterized queries instead.
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $CURSOR.execute(f"...{$VAR}...")
+          - pattern: |
+              $CURSOR.execute(f"...".format(...))
+    metadata:
+      cwe: "CWE-89"
+      owasp: "A03:2021 - Injection"
+
+  - id: cg.sqli.string-concat
+    message: |
+      SQL query built with string concatenation is vulnerable.
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $CURSOR.execute("..." + $VAR + "...")
+          - pattern: |
+              $CURSOR.execute("..." + $VAR)
+    metadata:
+      cwe: "CWE-89"
+
+  - id: cg.sqli.percent
+    message: |
+      SQL built with %% formatting is vulnerable to injection.
+      Use parameterized queries: cursor.execute(sql, params).
+    severity: ERROR
+    languages: [python]
+    pattern: |
+      $CURSOR.execute("..." % ($ARGS))
+    metadata:
+      cwe: "CWE-89"
+
+  - id: cg.cmd.os-system
+    message: |
+      os.system() with variable input can lead to command injection.
+      Use subprocess.run() with shell=False and a list of arguments.
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern-either:
+          - pattern: os.system($CMD)
+          - pattern: os.popen($CMD)
+    metadata:
+      cwe: "CWE-78"
+
+  - id: cg.cmd.subprocess-shell
+    message: |
+      subprocess with shell=True is vulnerable to command injection.
+    severity: ERROR
+    languages: [python]
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+    metadata:
+      cwe: "CWE-78"
+
+  - id: cg.path.join-user-input
+    message: |
+      User input used directly in file path may allow path traversal.
+    severity: WARNING
+    languages: [python]
+    pattern: os.path.join($BASE, request.$GET)
+    metadata:
+      cwe: "CWE-22"
+
+  - id: cg.path.open-user-input
+    message: |
+      User-controlled input in open() may enable path traversal.
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern-either:
+          - pattern: open(request.$FIELD, ...)
+          - pattern: open($REQUEST, ...)
+    metadata:
+      cwe: "CWE-22"
+
+  - id: cg.deser.pickle
+    message: |
+      pickle.loads() on untrusted data enables arbitrary code execution.
+      Use json.loads() or another safe serialization format.
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern-either:
+          - pattern: pickle.loads($DATA)
+          - pattern: pickle.load($FILE)
+          - pattern: cPickle.loads($DATA)
+    metadata:
+      cwe: "CWE-502"
+
+  - id: cg.deser.yaml-unsafe
+    message: |
+      yaml.load() without SafeLoader can execute arbitrary code.
+      Use yaml.safe_load() instead.
+    severity: ERROR
+    languages: [python]
+    pattern: yaml.load($DATA)
+    metadata:
+      cwe: "CWE-502"
+
+  - id: cg.secrets.assign
+    message: |
+      Potential hardcoded credential: variable name matches secret pattern.
+      Move to environment variables or a secrets manager.
+    severity: ERROR
+    languages: [python]
+    patterns:
+      - pattern: |
+          $PASSWORD = "..."
+      - metavariable-regex:
+          metavariable: $PASSWORD
+          regex: (?i)(password|passwd|secret|api_key|apikey|token|auth)
+    metadata:
+      cwe: "CWE-798"
+
+  - id: cg.xss.mark-safe
+    message: |
+      mark_safe() bypasses Django XSS protection. Ensure content is sanitized.
+    severity: WARNING
+    languages: [python]
+    pattern: django.utils.safestring.mark_safe($DATA)
+    metadata:
+      cwe: "CWE-79"
+
+  - id: cg.crypto.weak-hash
+    message: |
+      MD5 or SHA1 is cryptographically broken. Use SHA-256 or stronger.
+    severity: WARNING
+    languages: [python]
+    patterns:
+      - pattern-either:
+          - pattern: hashlib.md5(...)
+          - pattern: hashlib.sha1(...)
+    metadata:
+      cwe: "CWE-327"
+
+  - id: cg.redirect.user-input
+    message: |
+      User-controlled URL in redirect may enable open redirect attacks.
+      Validate the URL against a whitelist.
+    severity: WARNING
+    languages: [python]
+    pattern: django.shortcuts.redirect(request.$GET)
+    metadata:
+      cwe: "CWE-601"
