@@ -73,8 +73,8 @@ def review(
     config_path: Optional[Path] = typer.Option(
         None, "--config", "-c", help="Path to config file"
     ),
-    format: ReportFormat = typer.Option(
-        ReportFormat.MARKDOWN, "--format", "-f", help="Output format"
+    format: str = typer.Option(
+        "markdown", "--format", "-f", help="Output format: markdown / json / sarif"
     ),
     output: Optional[Path] = typer.Option(
         None, "--output", "-o", help="Output file path"
@@ -92,6 +92,12 @@ def review(
         _review_interactive()
         return
 
+    try:
+        report_fmt = ReportFormat(format)
+    except ValueError:
+        console.print(f"[red]Invalid format: {format}. Use markdown / json / sarif[/red]")
+        raise typer.Exit(code=1)
+
     settings = load_config(config_path)
 
     # Build change scope
@@ -102,7 +108,7 @@ def review(
 
     # Generate report
     reporter = Reporter(findings)
-    _output_report(reporter, format, settings, output)
+    _output_report(reporter, report_fmt, settings, output)
 
     # Print summary
     _print_summary(reporter)
