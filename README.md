@@ -51,32 +51,65 @@ Multi-agent collaborative automated code review system. Six specialized agents a
 ## Quick Start
 
 ```bash
-# Clone and install
 git clone https://github.com/ttzhou616/codeguardian.git
 cd codeguardian
 pip install -e ".[dev]"
 
-# Generate config
-codeg init
-
-# Interactive review (step-by-step prompts)
+# 交互式审查（推荐新手）—— 逐步提示选择路径、Agent、格式
 codeg review
 
-# Review a directory (non-interactive)
-codeg review --path ./src
-
-# Run a single agent
-codeg review --path ./src --only performance_analyzer
-
-# Review git changes
-codeg review --diff HEAD~3..HEAD --format markdown
-
-# CI check (non-zero exit on issues)
-codeg check --path ./src --threshold critical
-
-# List agents
-codeg agents
+# 非交互 —— 一行命令直接跑
+codeg review --path ./src --format markdown
 ```
+
+## Interactive Mode
+
+输入 `codeg review`（不带任何参数）进入四步引导：
+
+```
+CodeGuardian Interactive Review
+────────────────────────────────────────
+
+1. 请输入要审查的目录或文件路径
+   D:\myproject\src
+
+2. 选择审查 Agent
+   ┌───┬──────────────────────┬──────────────────────────────────┐
+   │ # │ Agent                │ Description                      │
+   ├───┼──────────────────────┼──────────────────────────────────┤
+   │ 1 │ security_scanner     │ 安全扫描 — SQL注入/密钥/XSS      │
+   │ 2 │ static_analysis      │ 静态分析 — 复杂度/嵌套/参数      │
+   │ 3 │ style_checker        │ 风格检查 — 命名/函数长度         │
+   │ 4 │ design_reviewer      │ 设计审查 — 循环依赖/上帝类       │
+   │ 5 │ test_reviewer        │ 测试审查 — 缺失测试/断言         │
+   │ 6 │ performance_analyzer │ 性能分析 — N+1查询/循环拼接      │
+   │ 0 │ all                  │ 全部运行                         │
+   └───┴──────────────────────┴──────────────────────────────────┘
+   输入序号 (0=全部, 1-6) [0]: 6
+
+3. 输出格式
+   ┌───┬──────────┬────────────────────────────────────┐
+   │ # │ Format   │ Description                        │
+   ├───┼──────────┼────────────────────────────────────┤
+   │ 1 │ markdown │ 可读报告，适合终端查看和文件保存   │
+   │ 2 │ json     │ 机器可读，适合 CI 流水线           │
+   │ 3 │ sarif    │ SARIF 标准，可导入 GitHub Scanning │
+   └───┴──────────┴────────────────────────────────────┘
+   选择格式 [1]: 1
+
+4. 保存到文件？ [y/n]: y
+   文件名 [review_report.md]: review_report.md
+
+开始审查？ [y/n]: y
+```
+
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| 1 | 输入路径 | 支持绝对路径、相对路径。路径不存在会提示重新输入 |
+| 2 | 选择 Agent | `0`=全部分析，`1-6`=只运行单个 Agent |
+| 3 | 输出格式 | markdown（可读）/ json（CI）/ sarif（GitHub Code Scanning） |
+| 4 | 保存文件 | 可选保存到文件；不保存则直接输出到终端 |
+| — | 确认执行 | 最后确认才真正运行审查 |
 
 ## CLI Commands
 

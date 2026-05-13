@@ -87,22 +87,79 @@ codeg review [OPTIONS]
 | `--format, -f` | 输出格式：markdown / json / sarif | `--format json` |
 | `--output, -o` | 输出到文件（默认输出到终端） | `--output report.md` |
 | `--only` | 只运行指定 Agent | `--only security_scanner` |
-| `--interactive, -i` | 交互模式：逐步提示输入 | `--interactive` |
+| `--interactive, -i` | 显式进入交互模式 | `--interactive` |
 
-**交互模式：**
+#### 交互模式
 
-不带 `--path` 和 `--diff` 时自动进入交互模式，逐步引导输入：
+**触发方式**：不加 `--path` 和 `--diff`，直接输入 `codeg review`。
+
+**完整流程演示：**
 
 ```
-1. 目录路径 → 2. 选择Agent (0=全部 / 1-6) → 3. 输出格式 → 4. 保存文件 → 确认执行
+$ codeg review
+
+CodeGuardian Interactive Review
+────────────────────────────────────────
+
+1. 请输入要审查的目录或文件路径: D:\myproject\src
+   ✓ D:\myproject\src
+
+                          2. 选择审查 Agent
+┌───┬──────────────────────┬──────────────────────────────────┐
+│ # │ Agent                │ Description                      │
+├───┼──────────────────────┼──────────────────────────────────┤
+│ 1 │ security_scanner     │ 安全扫描 — SQL注入/密钥/XSS      │
+│ 2 │ static_analysis      │ 静态分析 — 复杂度/嵌套/参数      │
+│ 3 │ style_checker        │ 风格检查 — 命名/函数长度         │
+│ 4 │ design_reviewer      │ 设计审查 — 循环依赖/上帝类       │
+│ 5 │ test_reviewer        │ 测试审查 — 缺失测试/断言         │
+│ 6 │ performance_analyzer │ 性能分析 — N+1查询/循环拼接      │
+│ 0 │ all                  │ 全部运行                         │
+└───┴──────────────────────┴──────────────────────────────────┘
+输入序号 (0=全部, 1-6) [0]: 6
+   ✓ performance_analyzer
+
+                            3. 输出格式
+┌───┬──────────┬────────────────────────────────────┐
+│ # │ Format   │ Description                        │
+├───┼──────────┼────────────────────────────────────┤
+│ 1 │ markdown │ 可读报告，适合终端查看和文件保存   │
+│ 2 │ json     │ 机器可读，适合 CI 流水线           │
+│ 3 │ sarif    │ SARIF 标准，可导入 GitHub Scanning │
+└───┴──────────┴────────────────────────────────────┘
+选择格式 [1]: 1
+   ✓ markdown
+
+4. 保存到文件？ [y/n]: y
+文件名 [review_report.md]: review_report.md
+   ✓ D:\myproject\review_report.md
+
+────────────────────────────────────────
+开始审查？ [y/n]: y
+
+   Review Summary
+┌──────────┬───────┐
+│ Severity │ Count │
+├──────────┼───────┤
+│ Warning  │     3 │
+└──────────┴───────┘
+Total: 3 finding(s)
+报告已保存至: D:\myproject\review_report.md
 ```
 
-**示例：**
+**各步骤说明：**
+
+| 步骤 | 输入 | 校验 | 默认值 |
+|------|------|------|--------|
+| 1. 路径 | 文件或目录的绝对/相对路径 | 路径不存在会重新提示 | 无（必填） |
+| 2. Agent | `0`=全部，`1-6`=单个 | 无效数字重新提示 | `0`（全部） |
+| 3. 格式 | `1`=markdown，`2`=json，`3`=sarif | — | `1`（markdown） |
+| 4. 输出 | y/n + 文件名 | — | `y` + `review_report.{ext}` |
+| 确认 | y/n | — | `y` |
+
+#### 非交互模式示例
 
 ```bash
-# 交互模式（推荐新手）
-codeg review
-
 # 审查单个文件
 codeg review --path src/app.py
 
@@ -112,11 +169,11 @@ codeg review --path ./src --only performance_analyzer
 # 审查整个目录，JSON 格式输出到文件
 codeg review --path ./src --format json --output report.json
 
-# 审查 PR 变更（在 GitHub Actions 中自动获取 diff）
+# 审查 PR 变更
 codeg review --diff origin/main...HEAD --format markdown
 
-# 审查 + 严格模式（有 WARNING 就退出码 2）
-codeg review --path ./src --config strict.yaml
+# 显式进入交互模式（即使指定了 --path）
+codeg review --path ./src --interactive
 ```
 
 **输出格式说明：**
