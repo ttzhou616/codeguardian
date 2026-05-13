@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+from pathlib import Path
 from typing import Optional
 
 from codeguardian.agents.base import BaseAgent
 from codeguardian.config import CodeGuardianSettings, load_config
+from codeguardian.llm_filter import LLMFilter
 from codeguardian.models.findings import ChangeScope, Finding, ReviewReport
 from codeguardian.synthesizer import Synthesizer
 
@@ -64,7 +66,35 @@ class Orchestrator(BaseAgent):
             else:
                 all_findings.extend(result)
 
-        return self.synthesizer.process(all_findings)
+        findings = self.synthesizer.process(all_findings)
+
+        # Apply LLM false-positive filter if configured
+        llm = self._get_llm_filter()
+        if llm.enabled:
+            sources = self._read_source_files(scope)
+            before = len(findings)
+            findings = await llm.filter(findings, sources)
+            after = len(findings)
+            if before != after:
+                await self.log("info", f"LLM filtered {before - after} false positives")
+
+        return findings
+
+    def _get_llm_filter(self) -> LLMFilter:
+        return LLMFilter(
+            api_key=self.settings.llm_api_key,
+            model=self.settings.llm_model,
+        )
+
+    @staticmethod
+    def _read_source_files(scope: ChangeScope) -> dict[str, str]:
+        sources: dict[str, str] = {}
+        for f in scope.changed_files:
+            try:
+                sources[f.path] = Path(f.path).read_text(encoding="utf-8", errors="replace")
+            except Exception:
+                pass
+        return sources
 
     async def review(self, scope: ChangeScope) -> ReviewReport:
         """Entry point: run a full review and return the report."""
