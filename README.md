@@ -57,19 +57,19 @@ cd codeguardian
 pip install -e ".[dev]"
 
 # Generate config
-codeguardian init
+codeg init
 
 # Review a directory
-codeguardian review --path ./src
+codeg review --path ./src
 
 # Review git changes
-codeguardian review --diff HEAD~3..HEAD --format markdown
+codeg review --diff HEAD~3..HEAD --format markdown
 
 # CI check (non-zero exit on issues)
-codeguardian check --path ./src --threshold critical
+codeg check --path ./src --threshold critical
 
 # List agents
-codeguardian agents
+codeg agents
 ```
 
 ## CLI Commands
@@ -141,7 +141,7 @@ pip install -e ".[dev,semgrep,vectordb]"  # full install
 - name: CodeGuardian Check
   run: |
     pip install -e ".[dev]"
-    codeguardian check --path ./src --threshold critical
+    codeg check --path ./src --threshold critical
 ```
 
 For PR comments and SARIF upload, see [USAGE.md](USAGE.md).

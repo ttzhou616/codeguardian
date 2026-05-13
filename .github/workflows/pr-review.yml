@@ -35,7 +35,7 @@ jobs:
       - name: Run CodeGuardian review
         if: steps.changed.outputs.count > 0
         run: |
-          python -m codeguardian.main review --diff origin/${{ github.base_ref }}...HEAD --format markdown --output review_report.md || true
+          codeg review --diff origin/${{ github.base_ref }}...HEAD --format markdown --output review_report.md || true
 
       - name: Post PR comment
         if: steps.changed.outputs.count > 0 && hashFiles('review_report.md') != ''

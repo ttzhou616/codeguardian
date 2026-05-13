@@ -44,7 +44,7 @@ vectordb = [
 ]
 
 [project.scripts]
-codeguardian = "codeguardian.main:app"
+codeg = "codeguardian.main:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]

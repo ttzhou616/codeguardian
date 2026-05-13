@@ -25,7 +25,7 @@ from codeguardian.orchestrator import Orchestrator
 from codeguardian.reporter import Reporter
 
 app = typer.Typer(
-    name="codeguardian",
+    name="codeg",
     help="Multi-agent collaborative code review system",
     add_completion=False,
 )

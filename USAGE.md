@@ -48,19 +48,19 @@ pip install -e ".[dev,semgrep,vectordb]"
 
 ```bash
 # 1. 生成配置
-codeguardian init
+codeg init
 
 # 2. 审查一个目录
-codeguardian review --path ./src
+codeg review --path ./src
 
 # 3. 审查 Git 变更
-codeguardian review --diff HEAD~3..HEAD
+codeg review --diff HEAD~3..HEAD
 
 # 4. CI 检查（有严重问题返回非零退出码）
-codeguardian check --path ./src --threshold critical
+codeg check --path ./src --threshold critical
 
 # 5. 查看所有 Agent
-codeguardian agents
+codeg agents
 ```
 
 ---
@@ -70,7 +70,7 @@ codeguardian agents
 ### `review` — 代码审查
 
 ```bash
-codeguardian review [OPTIONS]
+codeg review [OPTIONS]
 ```
 
 | 选项 | 说明 | 示例 |
@@ -85,16 +85,16 @@ codeguardian review [OPTIONS]
 
 ```bash
 # 审查单个文件
-codeguardian review --path src/app.py
+codeg review --path src/app.py
 
 # 审查整个目录，JSON 格式输出到文件
-codeguardian review --path ./src --format json --output report.json
+codeg review --path ./src --format json --output report.json
 
 # 审查 PR 变更（在 GitHub Actions 中自动获取 diff）
-codeguardian review --diff origin/main...HEAD --format markdown
+codeg review --diff origin/main...HEAD --format markdown
 
 # 审查 + 严格模式（有 WARNING 就退出码 2）
-codeguardian review --path ./src --config strict.yaml
+codeg review --path ./src --config strict.yaml
 ```
 
 **输出格式说明：**
@@ -106,7 +106,7 @@ codeguardian review --path ./src --config strict.yaml
 ### `check` — CI 友好检查
 
 ```bash
-codeguardian check --path ./src --threshold warning
+codeg check --path ./src --threshold warning
 ```
 
 退出码：
@@ -116,26 +116,26 @@ codeguardian check --path ./src --threshold warning
 
 ```bash
 # 在 CI 中使用
-codeguardian check --path ./src --threshold critical || exit 2
+codeg check --path ./src --threshold critical || exit 2
 ```
 
 ### `pr-review` — PR 审查
 
 ```bash
-codeguardian pr-review [OPTIONS]
+codeg pr-review [OPTIONS]
 ```
 
 需要 `GITHUB_TOKEN` 环境变量或已认证的 `gh` CLI。
 
 ```bash
 # 自动检测当前 PR（在 GitHub Actions 中运行）
-codeguardian pr-review
+codeg pr-review
 
 # 手动指定 PR
-codeguardian pr-review --pr 42 --repo owner/repo
+codeg pr-review --pr 42 --repo owner/repo
 
 # 指定配置文件
-codeguardian pr-review --pr 42 --config ./codeguardian.yaml
+codeg pr-review --pr 42 --config ./codeguardian.yaml
 ```
 
 审查结果自动以 Comment 形式贴到 PR 中。同一 PR 有新 commit 时会更新已有 Comment。
@@ -143,22 +143,22 @@ codeguardian pr-review --pr 42 --config ./codeguardian.yaml
 ### `init` — 生成配置文件
 
 ```bash
-codeguardian init [--output path]
+codeg init [--output path]
 ```
 
 ```bash
 # 默认位置
-codeguardian init
+codeg init
 # → ./.codeguardian.yaml
 
 # 自定义位置
-codeguardian init --output ./config/cg.yaml
+codeg init --output ./config/cg.yaml
 ```
 
 ### `agents` — 列出 Agent
 
 ```bash
-codeguardian agents
+codeg agents
 ```
 
 输出：
@@ -178,7 +178,7 @@ codeguardian agents
 ### `kb-stats` — 知识库统计
 
 ```bash
-codeguardian kb-stats
+codeg kb-stats
 ```
 
 输出：
@@ -370,7 +370,7 @@ semgrep --version
 
 # 使用自定义 Semgrep 规则
 export CG_SEMGREP_RULES="./my-semgrep-rules/"
-codeguardian review --path ./src
+codeg review --path ./src
 ```
 
 ### LLM 智能误报过滤
@@ -385,7 +385,7 @@ export CG_LLM_API_KEY="sk-your-deepseek-key"
 export CG_LLM_MODEL="deepseek-chat"
 
 # 正常使用，LLM 过滤自动生效
-codeguardian review --path ./src
+codeg review --path ./src
 ```
 
 **LLM 能识别的情况：**
@@ -405,7 +405,7 @@ codeguardian review --path ./src
 pip install codeguardian[vectordb]
 
 # 查看知识库状态
-codeguardian kb-stats
+codeg kb-stats
 
 # 数据存储在 .codeguardian_vectordb/ 目录
 # 团队可共享此目录（gitignore 已排除）
@@ -466,7 +466,7 @@ rules:
 - name: CodeGuardian Check
   run: |
     pip install -e ".[dev]"
-    codeguardian check --path ./src --threshold critical
+    codeg check --path ./src --threshold critical
 ```
 
 当发现 CRITICAL 问题时流水线失败。
@@ -521,7 +521,7 @@ agents:
 
 ```yaml
 - name: CodeGuardian Review
-  run: codeguardian review --path ./src --format sarif --output cg-results.sarif
+  run: codeg review --path ./src --format sarif --output cg-results.sarif
 
 - name: Upload SARIF
   uses: github/codeql-action/upload-sarif@v3
