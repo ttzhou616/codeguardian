@@ -93,6 +93,8 @@ codeg review [OPTIONS]
 
 **触发方式**：不加 `--path` 和 `--diff`，直接输入 `codeg review`。
 
+详细图文说明见 [INTERACTIVE.md](INTERACTIVE.md)。
+
 **完整流程演示：**
 
 ```
