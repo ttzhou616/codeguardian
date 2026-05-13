@@ -281,3 +281,50 @@ def _default_style_rules() -> list[SecurityRule]:
             category="structure",
         ),
     ]
+
+
+def load_static_rules() -> list[SecurityRule]:
+    """Return regex-based static analysis rules for non-Python languages.
+    Python files are analyzed via AST in StaticAnalysisAgent."""
+    return [
+        SecurityRule(
+            rule_id="SA-010",
+            title="console.log() in production code",
+            description="Debug logging left in production code.",
+            severity=Severity.SUGGESTION,
+            patterns=[r"console\.(?:log|debug|warn)\("],
+            file_extensions=[".js", ".ts", ".jsx", ".tsx", ".vue"],
+            suggestion="Remove debug logging or use a proper logging framework.",
+            category="structure",
+        ),
+        SecurityRule(
+            rule_id="SA-011",
+            title="TODO/FIXME comment",
+            description="Unresolved TODO or FIXME comment found.",
+            severity=Severity.INFO,
+            patterns=[r"(?i)(?:TODO|FIXME|HACK|XXX)\b"],
+            file_extensions=[],
+            suggestion="Resolve or track this item before merging.",
+            category="structure",
+        ),
+        SecurityRule(
+            rule_id="SA-012",
+            title="var usage in modern JS",
+            description="Using 'var' instead of 'const' or 'let'.",
+            severity=Severity.SUGGESTION,
+            patterns=[r"\bvar\s+\w+\s*="],
+            file_extensions=[".js", ".ts", ".jsx", ".tsx"],
+            suggestion="Use 'const' for immutable bindings or 'let' for mutable ones.",
+            category="structure",
+        ),
+        SecurityRule(
+            rule_id="SA-013",
+            title="Empty except/catch block",
+            description="Exception caught but silently ignored.",
+            severity=Severity.WARNING,
+            patterns=[r"except\s*:", r"catch\s*\(\s*\)\s*\{\s*\}"],
+            file_extensions=[".py", ".js", ".ts", ".java", ".go"],
+            suggestion="At minimum, log the exception. Never silently swallow errors.",
+            category="structure",
+        ),
+    ]
